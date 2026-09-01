@@ -71,52 +71,92 @@ pipeline {
             }
         }
 
+        stage('AWS Identity Check') {
+            steps {
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+                     credentialsId: 'aws-imageforge']
+                ]) {
+                    sh '''
+                        echo "Checking AWS identity..."
+
+                        aws sts get-caller-identity
+
+                        echo "AWS authentication successful."
+                    '''
+                }
+            }
+        }
+
         stage('ECR Login') {
             steps {
-                sh '''
-                    AWS_ACCOUNT_ID=$(aws sts get-caller-identity \
-                        --query Account \
-                        --output text)
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+                     credentialsId: 'aws-imageforge']
+                ]) {
+                    sh '''
+                        AWS_ACCOUNT_ID=$(aws sts get-caller-identity \
+                            --query Account \
+                            --output text)
 
-                    ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+                        ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 
-                    aws ecr get-login-password \
-                        --region ${AWS_REGION} | \
-                    docker login \
-                        --username AWS \
-                        --password-stdin ${ECR_REGISTRY}
-                '''
+                        echo "Logging in to ECR..."
+
+                        aws ecr get-login-password \
+                            --region "${AWS_REGION}" | \
+                        docker login \
+                            --username AWS \
+                            --password-stdin "${ECR_REGISTRY}"
+                    '''
+                }
             }
         }
 
         stage('Push Image to ECR') {
             steps {
-                sh '''
-                    AWS_ACCOUNT_ID=$(aws sts get-caller-identity \
-                        --query Account \
-                        --output text)
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+                     credentialsId: 'aws-imageforge']
+                ]) {
+                    sh '''
+                        AWS_ACCOUNT_ID=$(aws sts get-caller-identity \
+                            --query Account \
+                            --output text)
 
-                    ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+                        ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 
-                    docker tag \
-                        ${IMAGE_NAME}:${BUILD_NUMBER} \
-                        ${ECR_REGISTRY}/${ECR_REPOSITORY}:${BUILD_NUMBER}
+                        ECR_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}"
 
-                    docker tag \
-                        ${IMAGE_NAME}:${BUILD_NUMBER} \
-                        ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
+                        echo "Tagging Docker image..."
 
-                    docker push \
-                        ${ECR_REGISTRY}/${ECR_REPOSITORY}:${BUILD_NUMBER}
+                        docker tag \
+                            "${IMAGE_NAME}:${BUILD_NUMBER}" \
+                            "${ECR_IMAGE}:${BUILD_NUMBER}"
 
-                    docker push \
-                        ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
-                '''
+                        docker tag \
+                            "${IMAGE_NAME}:${BUILD_NUMBER}" \
+                            "${ECR_IMAGE}:latest"
+
+                        echo "Pushing build ${BUILD_NUMBER} to ECR..."
+
+                        docker push \
+                            "${ECR_IMAGE}:${BUILD_NUMBER}"
+
+                        echo "Pushing latest image to ECR..."
+
+                        docker push \
+                            "${ECR_IMAGE}:latest"
+
+                        echo "ECR push completed successfully."
+                    '''
+                }
             }
         }
     }
 
     post {
+
         always {
             sh '''
                 docker rm -f ${CONTAINER_NAME} 2>/dev/null || true
