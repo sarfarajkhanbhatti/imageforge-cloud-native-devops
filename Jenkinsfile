@@ -38,6 +38,7 @@ pipeline {
             steps {
                 withSonarQubeEnv('SonarQube') {
                     sh '''
+                        export PATH="/opt/sonar-scanner/bin:${PATH}"
                         sonar-scanner
                     '''
                 }
