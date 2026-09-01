@@ -62,6 +62,39 @@ resource "aws_iam_role_policy" "imageforge_s3" {
 }
 
 
+resource "aws_iam_role_policy" "imageforge_ecr" {
+  name = "${local.project_name}-ecr-policy"
+  role = aws_iam_role.imageforge_ec2.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect = "Allow"
+
+        Action = [
+          "ecr:GetAuthorizationToken"
+        ]
+
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+
+        Action = [
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchGetImage"
+        ]
+
+        Resource = aws_ecr_repository.imageforge.arn
+      }
+    ]
+  })
+}
+
+
 resource "aws_iam_instance_profile" "imageforge" {
   name = "${local.project_name}-instance-profile"
   role = aws_iam_role.imageforge_ec2.name

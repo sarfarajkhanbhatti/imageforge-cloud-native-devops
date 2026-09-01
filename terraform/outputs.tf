@@ -37,3 +37,7 @@ output "application_url" {
   description = "ImageForge application URL"
   value       = "http://${aws_instance.imageforge.public_ip}:5000"
 }
+output "ecr_repository_url" {
+  description = "ECR repository URL for ImageForge"
+  value       = aws_ecr_repository.imageforge.repository_url
+}

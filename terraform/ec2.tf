@@ -38,7 +38,10 @@ resource "aws_instance" "imageforge" {
   user_data = templatefile(
     "${path.module}/user_data.sh.tpl",
     {
-      aws_region = var.aws_region
+      aws_region     = var.aws_region
+      s3_bucket      = aws_s3_bucket.imageforge.id
+      ecr_repository = aws_ecr_repository.imageforge.name
+      ecr_registry   = split("/", aws_ecr_repository.imageforge.repository_url)[0]
     }
   )
 

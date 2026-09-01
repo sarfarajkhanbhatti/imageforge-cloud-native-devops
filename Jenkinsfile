@@ -2,8 +2,10 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = 'imageforge'
-        CONTAINER_NAME = 'imageforge'
+        IMAGE_NAME      = 'imageforge'
+        CONTAINER_NAME  = 'imageforge'
+        AWS_REGION      = 'us-east-1'
+        ECR_REPOSITORY  = 'imageforge'
     }
 
     stages {
@@ -31,6 +33,16 @@ pipeline {
             }
         }
 
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('SonarQube') {
+                    sh '''
+                        sonar-scanner
+                    '''
+                }
+            }
+        }
+
         stage('Docker Build') {
             steps {
                 sh '''
@@ -43,7 +55,7 @@ pipeline {
         stage('Docker Test') {
             steps {
                 sh '''
-                    docker rm -f ${CONTAINER_NAME} || true
+                    docker rm -f ${CONTAINER_NAME} 2>/dev/null || true
 
                     docker run -d \
                         --name ${CONTAINER_NAME} \
@@ -58,6 +70,50 @@ pipeline {
                 '''
             }
         }
+
+        stage('ECR Login') {
+            steps {
+                sh '''
+                    AWS_ACCOUNT_ID=$(aws sts get-caller-identity \
+                        --query Account \
+                        --output text)
+
+                    ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+                    aws ecr get-login-password \
+                        --region ${AWS_REGION} | \
+                    docker login \
+                        --username AWS \
+                        --password-stdin ${ECR_REGISTRY}
+                '''
+            }
+        }
+
+        stage('Push Image to ECR') {
+            steps {
+                sh '''
+                    AWS_ACCOUNT_ID=$(aws sts get-caller-identity \
+                        --query Account \
+                        --output text)
+
+                    ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+                    docker tag \
+                        ${IMAGE_NAME}:${BUILD_NUMBER} \
+                        ${ECR_REGISTRY}/${ECR_REPOSITORY}:${BUILD_NUMBER}
+
+                    docker tag \
+                        ${IMAGE_NAME}:${BUILD_NUMBER} \
+                        ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
+
+                    docker push \
+                        ${ECR_REGISTRY}/${ECR_REPOSITORY}:${BUILD_NUMBER}
+
+                    docker push \
+                        ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
+                '''
+            }
+        }
     }
 
     post {
@@ -68,11 +124,11 @@ pipeline {
         }
 
         success {
-            echo 'ImageForge CI pipeline completed successfully.'
+            echo 'ImageForge CI/CD build completed successfully.'
         }
 
         failure {
-            echo 'ImageForge CI pipeline failed.'
+            echo 'ImageForge CI/CD pipeline failed.'
         }
     }
 }
