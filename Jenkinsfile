@@ -19,8 +19,9 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 sh '''
-                    python3 -m pip install --upgrade pip
-                    pip3 install -r app/requirements.txt
+                    python3 -m venv .venv
+                    .venv/bin/python -m pip install --upgrade pip
+                    .venv/bin/pip install -r app/requirements.txt
                 '''
             }
         }
@@ -28,7 +29,7 @@ pipeline {
         stage('Unit Tests') {
             steps {
                 sh '''
-                    python3 -m pytest -v
+                    .venv/bin/python -m pytest -v
                 '''
             }
         }
