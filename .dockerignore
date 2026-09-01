@@ -1,0 +1,16 @@
+.git
+.gitignore
+.github
+.terraform
+terraform/.terraform
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/terraform.tfvars
+__pycache__
+*.pyc
+.pytest_cache
+.coverage
+htmlcov
+.env
+.venv
+venv
